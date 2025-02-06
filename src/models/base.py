@@ -13,22 +13,30 @@ class BaseModel(db.Model):
     @classmethod
     def get_by_id(cls, id):
         """Get model instance by ID."""
-        return cls.query.get(id)
+        return db.session.get(cls, id)
 
     @classmethod
     def get_all(cls):
         """Get all model instances."""
-        return cls.query.all()
+        return db.session.execute(db.select(cls)).scalars().all()
 
     def save(self):
         """Save the model instance."""
         db.session.add(self)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
 
     def delete(self):
         """Delete the model instance."""
         db.session.delete(self)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
 
     def to_dict(self):
         """Convert model to dictionary."""
@@ -40,3 +48,7 @@ class BaseModel(db.Model):
             if hasattr(self, key):
                 setattr(self, key, value)
         self.save()
+
+    def refresh(self):
+        """Refresh the model instance from the database."""
+        db.session.refresh(self)

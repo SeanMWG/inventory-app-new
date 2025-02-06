@@ -20,19 +20,18 @@ class Inventory(BaseModel):
     notes = db.Column(db.Text)
     is_loaner = db.Column(db.Boolean, default=False)
     current_checkout_id = db.Column(db.Integer)
-    location_id = db.Column(db.Integer, db.ForeignKey('location.id'))
 
-    # Relationships
-    location = db.relationship('Location', backref=db.backref('inventory_items', lazy=True))
+    # Foreign Keys
+    location_id = db.Column(db.Integer, db.ForeignKey('location.id', ondelete='CASCADE'), nullable=False)
 
     def assign(self, user_email):
-        """Assign the item to a user."""
+        """Assign inventory item to user."""
         self.assigned_to = user_email
         self.date_assigned = datetime.utcnow()
         self.save()
 
     def decommission(self):
-        """Decommission the item."""
+        """Decommission inventory item."""
         self.status = 'decommissioned'
         self.date_decommissioned = datetime.utcnow()
         self.save()
@@ -41,5 +40,10 @@ class Inventory(BaseModel):
         """Convert model to dictionary."""
         data = super().to_dict()
         if self.location:
-            data['location'] = self.location.to_dict()
+            data['location'] = {
+                'id': self.location.id,
+                'site_name': self.location.site_name,
+                'room_number': self.location.room_number,
+                'room_name': self.location.room_name
+            }
         return data

@@ -1,3 +1,4 @@
+"""Flask application factory."""
 from flask import Flask, g, request
 from flask_migrate import Migrate
 from datetime import datetime
@@ -98,9 +99,11 @@ def create_app(config_name=None):
     @app.route('/health')
     def health():
         try:
-            # Test database connection
-            db.session.execute(text('SELECT 1'))
-            return {'status': 'healthy', 'database': 'connected'}
+            with app.app_context():
+                # Test database connection
+                db.session.execute(text('SELECT 1'))
+                db.session.commit()
+                return {'status': 'healthy', 'database': 'connected'}
         except Exception as e:
             app.logger.error(f'Health check failed: {str(e)}')
             return {'status': 'unhealthy', 'database': 'disconnected'}, 500

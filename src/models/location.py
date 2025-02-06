@@ -14,6 +14,14 @@ class Location(BaseModel):
     status = db.Column(db.String(20), default='active')
     description = db.Column(db.Text)
 
+    # Relationships
+    inventory_items = db.relationship(
+        'Inventory',
+        backref='location',
+        lazy='dynamic',
+        cascade='all, delete-orphan'
+    )
+
     __table_args__ = (
         db.UniqueConstraint('site_name', 'room_number', name='uix_site_room'),
     )
@@ -27,4 +35,5 @@ class Location(BaseModel):
         """Convert model to dictionary."""
         data = super().to_dict()
         data['full_name'] = self.full_name
+        data['inventory_count'] = self.inventory_items.count()
         return data

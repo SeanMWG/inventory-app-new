@@ -15,6 +15,7 @@ def app():
     
     # Create app with testing config
     test_app = create_app('testing')
+    test_app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     
     # Establish application context
     with test_app.app_context():
@@ -52,12 +53,13 @@ def session(app, db):
         
         yield session
         
+        # Clean up
+        session.close()
         transaction.rollback()
         connection.close()
-        session.remove()
 
 @pytest.fixture
-def client(app):
+def client(app, session):
     """Create test client."""
     return app.test_client()
 
@@ -88,6 +90,7 @@ def sample_location(session):
     )
     session.add(location)
     session.commit()
+    session.refresh(location)
     
     return location
 
@@ -106,6 +109,7 @@ def sample_inventory(session, sample_location):
     )
     session.add(item)
     session.commit()
+    session.refresh(item)
     
     return item
 
@@ -122,5 +126,6 @@ def sample_audit_log(session, sample_inventory):
     )
     session.add(log)
     session.commit()
+    session.refresh(log)
     
     return log
