@@ -28,6 +28,13 @@ jobs:
         pip install -e .
         
     - name: Run tests
+      env:
+        FLASK_ENV: testing
+        TESTING: true
+        SECRET_KEY: test-secret-key
+        SQLALCHEMY_DATABASE_URI: sqlite:///test.db
+        SQLALCHEMY_TRACK_MODIFICATIONS: false
+        WTF_CSRF_ENABLED: false
       run: |
         python -m pytest
 
@@ -73,6 +80,6 @@ jobs:
     - name: Run database migrations
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        FLASK_APP: src.app:app
       run: |
-        export FLASK_APP=src.app:app
         flask db upgrade
