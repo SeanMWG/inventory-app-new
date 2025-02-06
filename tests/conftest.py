@@ -1,6 +1,7 @@
 """Test configuration and fixtures."""
 import os
 import tempfile
+import uuid
 import pytest
 from sqlalchemy.orm import scoped_session, sessionmaker
 from src.app import create_app
@@ -26,13 +27,17 @@ def app():
     os.close(db_fd)
     os.unlink(db_path)
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='function')
 def db(app):
     """Create database for the tests."""
-    return _db
+    with app.app_context():
+        _db.create_all()
+        yield _db
+        _db.session.remove()
+        _db.drop_all()
 
 @pytest.fixture(scope='function')
-def session(db, app):
+def session(app, db):
     """Create a new database session for a test."""
     with app.app_context():
         connection = db.engine.connect()
@@ -92,11 +97,11 @@ def sample_inventory(session, sample_location):
     from src.models.inventory import Inventory
     
     item = Inventory(
-        asset_tag='TEST001',
+        asset_tag=f'TEST{uuid.uuid4().hex[:6].upper()}',
         asset_type='Laptop',
         manufacturer='Test Manufacturer',
         model='Test Model',
-        serial_number='SN123456',
+        serial_number=f'SN{uuid.uuid4().hex[:8].upper()}',
         location_id=sample_location.id
     )
     session.add(item)
