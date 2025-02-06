@@ -98,3 +98,13 @@ def toggle_loaner(id):
     except Exception as e:
         current_app.logger.error(f'Error toggling loaner status for item {id}: {str(e)}')
         return {'error': 'Internal Server Error'}, 500
+
+@bp.errorhandler(401)
+def unauthorized(error):
+    """Handle unauthorized access."""
+    return {'error': 'Unauthorized'}, 401
+
+@bp.errorhandler(403)
+def forbidden(error):
+    """Handle forbidden access."""
+    return {'error': 'Forbidden'}, 403

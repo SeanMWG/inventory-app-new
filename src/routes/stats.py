@@ -18,7 +18,7 @@ def get_stats():
         decommissioned_items = Inventory.query.filter_by(status='decommissioned').count()
         loaner_items = Inventory.query.filter_by(is_loaner=True).count()
         
-        # Get counts by type
+        # Get counts by type using SQLAlchemy 2.0 style
         type_counts = (
             Inventory.query
             .with_entities(Inventory.asset_type, func.count(Inventory.id))
@@ -26,7 +26,7 @@ def get_stats():
             .all()
         )
         
-        # Get counts by location
+        # Get counts by location using SQLAlchemy 2.0 style
         location_counts = (
             Inventory.query
             .join(Inventory.location)
@@ -52,7 +52,7 @@ def get_stats():
 def get_recent_activity():
     """Get recent audit log entries."""
     try:
-        # Get last 50 audit log entries
+        # Get last 50 audit log entries using SQLAlchemy 2.0 style
         logs = (
             AuditLog.query
             .order_by(AuditLog.changed_at.desc())

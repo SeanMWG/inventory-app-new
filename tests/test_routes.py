@@ -50,11 +50,11 @@ def test_update_location(client, auth_headers, sample_location):
     data = json.loads(response.data)
     assert data['room_name'] == 'Updated Room'
 
-def test_delete_location(client, auth_headers, sample_location):
+def test_delete_location(client, auth_headers, sample_location, session):
     """Test delete location endpoint."""
     response = client.delete(f'/api/locations/{sample_location.id}', headers=auth_headers)
     assert response.status_code == 200
-    assert Location.query.get(sample_location.id) is None
+    assert session.get(Location, sample_location.id) is None
 
 def test_get_inventory(client, auth_headers):
     """Test get inventory endpoint."""
@@ -97,11 +97,11 @@ def test_update_inventory_item(client, auth_headers, sample_inventory):
     data = json.loads(response.data)
     assert data['asset_type'] == 'Updated Type'
 
-def test_delete_inventory_item(client, auth_headers, sample_inventory):
+def test_delete_inventory_item(client, auth_headers, sample_inventory, session):
     """Test delete inventory item endpoint."""
     response = client.delete(f'/api/inventory/{sample_inventory.id}', headers=auth_headers)
     assert response.status_code == 200
-    assert Inventory.query.get(sample_inventory.id) is None
+    assert session.get(Inventory, sample_inventory.id) is None
 
 def test_toggle_loaner(client, auth_headers, sample_inventory):
     """Test toggle loaner endpoint."""
@@ -111,24 +111,28 @@ def test_toggle_loaner(client, auth_headers, sample_inventory):
     data = json.loads(response.data)
     assert data['is_loaner'] is True
 
-def test_get_stats(client, auth_headers):
+def test_get_stats(client, auth_headers, sample_inventory):
     """Test get stats endpoint."""
     response = client.get('/api/stats', headers=auth_headers)
     assert response.status_code == 200
     data = json.loads(response.data)
     assert 'total_items' in data
+    assert data['total_items'] > 0
 
-def test_get_recent_activity(client, auth_headers):
+def test_get_recent_activity(client, auth_headers, sample_audit_log):
     """Test get recent activity endpoint."""
     response = client.get('/api/stats/recent-activity', headers=auth_headers)
     assert response.status_code == 200
     data = json.loads(response.data)
     assert isinstance(data, list)
+    assert len(data) > 0
 
 def test_unauthorized_access(client):
     """Test unauthorized access."""
     response = client.get('/api/inventory')
     assert response.status_code == 401
+    data = json.loads(response.data)
+    assert 'error' in data
 
 def test_forbidden_access(client):
     """Test forbidden access."""

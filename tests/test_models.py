@@ -71,15 +71,27 @@ def test_inventory_creation(session, sample_location):
     assert item.id is not None
     assert item.asset_tag == 'TEST001'
 
-def test_inventory_unique_constraints(session, sample_location):
+def test_inventory_unique_constraints(session):
     """Test inventory unique constraints."""
+    # Create a location first
+    location = Location(
+        site_name='Test Site',
+        room_number='101',
+        room_name='Test Room',
+        room_type='Office'
+    )
+    session.add(location)
+    session.commit()
+    session.refresh(location)
+
+    # Create first inventory item
     item1 = Inventory(
         asset_tag='TEST001',
         asset_type='Laptop',
         manufacturer='Test Manufacturer',
         model='Test Model',
         serial_number='SN123456',
-        location_id=sample_location.id
+        location_id=location.id
     )
     session.add(item1)
     session.commit()
@@ -91,7 +103,7 @@ def test_inventory_unique_constraints(session, sample_location):
         manufacturer='Test Manufacturer',
         model='Test Model',
         serial_number='SN789012',
-        location_id=sample_location.id
+        location_id=location.id
     )
     session.add(item2)
     with pytest.raises(IntegrityError):
@@ -105,7 +117,7 @@ def test_inventory_unique_constraints(session, sample_location):
         manufacturer='Test Manufacturer',
         model='Test Model',
         serial_number='SN123456',  # Same serial number
-        location_id=sample_location.id
+        location_id=location.id
     )
     session.add(item3)
     with pytest.raises(IntegrityError):
@@ -124,6 +136,8 @@ def test_inventory_location_relationship(session, sample_location):
     )
     session.add(item)
     session.commit()
+    session.refresh(item)
+    session.refresh(sample_location)
     
     assert item.location == sample_location
     assert item in sample_location.inventory_items
@@ -189,9 +203,12 @@ def test_model_to_dict_methods(session, sample_location, sample_inventory):
 
 def test_cascade_delete(session, sample_location, sample_inventory):
     """Test cascade delete behavior."""
+    location_id = sample_location.id
+    inventory_id = sample_inventory.id
+    
     # Delete location should cascade to inventory
     session.delete(sample_location)
     session.commit()
     
     # Verify inventory is deleted
-    assert Inventory.query.get(sample_inventory.id) is None
+    assert session.get(Inventory, inventory_id) is None
