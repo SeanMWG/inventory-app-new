@@ -2,10 +2,39 @@
 from functools import wraps
 from flask import current_app, request, redirect, url_for, session, g
 import json
+import msal
 
 def init_app(app):
     """Initialize authentication utilities."""
     pass
+
+def _build_msal_app(cache=None):
+    """Build the MSAL app."""
+    if current_app.testing:
+        return None
+        
+    return msal.ConfidentialClientApplication(
+        current_app.config.get('CLIENT_ID'),
+        authority=current_app.config.get('AUTHORITY'),
+        client_credential=current_app.config.get('CLIENT_SECRET'),
+        token_cache=cache
+    )
+
+def _get_token_from_cache(scope=None):
+    """Get token from cache."""
+    if current_app.testing:
+        return None
+        
+    cache = msal.SerializableTokenCache()
+    if session.get('token_cache'):
+        cache.deserialize(session['token_cache'])
+        
+    auth_app = _build_msal_app(cache)
+    accounts = auth_app.get_accounts()
+    if accounts:
+        result = auth_app.acquire_token_silent(scope, account=accounts[0])
+        session['token_cache'] = cache.serialize()
+        return result
 
 def requires_auth(f):
     """Decorator to require authentication."""
@@ -57,5 +86,7 @@ def refresh_token_if_needed():
     if current_app.testing:
         return
 
-    # Implement token refresh logic here
-    pass
+    # Get token from cache
+    token = _get_token_from_cache(current_app.config.get('SCOPE'))
+    if not token:
+        return redirect(url_for('auth.login'))

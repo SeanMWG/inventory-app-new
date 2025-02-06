@@ -33,6 +33,12 @@ jobs:
         TESTING: true
         SECRET_KEY: test-secret-key
         SQLALCHEMY_DATABASE_URI: sqlite:///test.db
+        SQLALCHEMY_TRACK_MODIFICATIONS: false
+        WTF_CSRF_ENABLED: false
+        CLIENT_ID: test-client-id
+        CLIENT_SECRET: test-client-secret
+        AUTHORITY: https://login.microsoftonline.com/test-tenant-id
+        SCOPE: test-scope
       run: |
         python -m pytest
 
@@ -44,6 +50,17 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+        
     - name: Log in to Azure
       uses: azure/login@v1
       with:
@@ -54,4 +71,3 @@ jobs:
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         package: .
-
