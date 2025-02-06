@@ -4,6 +4,7 @@ from datetime import datetime
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+from sqlalchemy import text
 
 from src.models import db
 from src.utils import auth as auth_utils
@@ -98,7 +99,7 @@ def create_app(config_name=None):
     def health():
         try:
             # Test database connection
-            db.session.execute('SELECT 1')
+            db.session.execute(text('SELECT 1'))
             return {'status': 'healthy', 'database': 'connected'}
         except Exception as e:
             app.logger.error(f'Health check failed: {str(e)}')

@@ -2,6 +2,7 @@
 import os
 import tempfile
 import pytest
+from sqlalchemy.orm import scoped_session, sessionmaker
 from src.app import create_app
 from src.models import db as _db
 
@@ -31,21 +32,24 @@ def db(app):
     return _db
 
 @pytest.fixture(scope='function')
-def session(db):
+def session(db, app):
     """Create a new database session for a test."""
-    connection = db.engine.connect()
-    transaction = connection.begin()
-    
-    options = dict(bind=connection, binds={})
-    session = db.create_scoped_session(options=options)
-    
-    db.session = session
-    
-    yield session
-    
-    transaction.rollback()
-    connection.close()
-    session.remove()
+    with app.app_context():
+        connection = db.engine.connect()
+        transaction = connection.begin()
+        
+        # Create session factory
+        session_factory = sessionmaker(bind=connection)
+        session = scoped_session(session_factory)
+        
+        # Set session
+        db.session = session
+        
+        yield session
+        
+        transaction.rollback()
+        connection.close()
+        session.remove()
 
 @pytest.fixture
 def client(app):
