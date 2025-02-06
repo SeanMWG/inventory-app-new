@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}IT Inventory Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2>
+            <i class="fas fa-tachometer-alt me-2"></i>
+            Dashboard
+        </h2>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle text-muted">Total Items</h6>
+                        <h2 class="card-title mb-0" id="totalItems">-</h2>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 p-3 rounded">
+                        <i class="fas fa-boxes fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle text-muted">Active Locations</h6>
+                        <h2 class="card-title mb-0" id="activeLocations">-</h2>
+                    </div>
+                    <div class="bg-success bg-opacity-10 p-3 rounded">
+                        <i class="fas fa-map-marker-alt fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle text-muted">Available Loaners</h6>
+                        <h2 class="card-title mb-0" id="availableLoaners">-</h2>
+                    </div>
+                    <div class="bg-info bg-opacity-10 p-3 rounded">
+                        <i class="fas fa-handshake fa-2x text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle text-muted">Pending Actions</h6>
+                        <h2 class="card-title mb-0" id="pendingActions">-</h2>
+                    </div>
+                    <div class="bg-warning bg-opacity-10 p-3 rounded">
+                        <i class="fas fa-clock fa-2x text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Recent Activity -->
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Recent Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Action</th>
+                                <th>Item/Location</th>
+                                <th>User</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentActivity">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-bolt me-2"></i>
+                    Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-3">
+                    {% if session.get('user', {}).get('roles', [])|select('equalto', 'admin')|list or 
+                          session.get('user', {}).get('roles', [])|select('equalto', 'manager')|list %}
+                    <button class="btn btn-primary" onclick="inventory.showItemModal()">
+                        <i class="fas fa-plus me-2"></i>Add New Item
+                    </button>
+                    <button class="btn btn-success" onclick="locations.showLocationModal()">
+                        <i class="fas fa-plus me-2"></i>Add New Location
+                    </button>
+                    {% endif %}
+                    <button class="btn btn-info" onclick="window.location.href='/api/inventory?is_loaner=true'">
+                        <i class="fas fa-handshake me-2"></i>View Loaners
+                    </button>
+                    <button class="btn btn-secondary" onclick="window.location.href='/api/inventory/export'">
+                        <i class="fas fa-file-export me-2"></i>Export Inventory
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- System Status -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-server me-2"></i>
+                    System Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Database</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge bg-success" id="dbStatus">Connected</span>
+                    </dd>
+                    
+                    <dt class="col-sm-4">Last Backup</dt>
+                    <dd class="col-sm-8" id="lastBackup">-</dd>
+                    
+                    <dt class="col-sm-4">Version</dt>
+                    <dd class="col-sm-8">1.0.0</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Load dashboard data
+    async function loadDashboard() {
+        try {
+            const [stats, activity] = await Promise.all([
+                $.get('/api/stats'),
+                $.get('/api/audit/recent')
+            ]);
+            
+            // Update statistics
+            $('#totalItems').text(stats.total_items);
+            $('#activeLocations').text(stats.active_locations);
+            $('#availableLoaners').text(stats.available_loaners);
+            $('#pendingActions').text(stats.pending_actions);
+            
+            // Update activity feed
+            const activityBody = $('#recentActivity');
+            activityBody.empty();
+            
+            activity.forEach(entry => {
+                activityBody.append(`
+                    <tr>
+                        <td>${utils.formatDate(entry.changed_at)}</td>
+                        <td>
+                            <span class="badge bg-${getActionBadgeClass(entry.action_type)}">
+                                ${entry.action_type}
+                            </span>
+                        </td>
+                        <td>${entry.asset_tag || entry.location_id}</td>
+                        <td>${entry.changed_by}</td>
+                    </tr>
+                `);
+            });
+            
+            // Update system status
+            const health = await $.get('/health');
+            $('#dbStatus')
+                .text(health.status === 'healthy' ? 'Connected' : 'Error')
+                .removeClass('bg-success bg-danger')
+                .addClass(health.status === 'healthy' ? 'bg-success' : 'bg-danger');
+            
+            $('#lastBackup').text(utils.formatDate(health.last_backup) || 'Never');
+            
+        } catch (error) {
+            utils.showError('Failed to load dashboard data');
+            console.error('Error loading dashboard:', error);
+        }
+    }
+    
+    function getActionBadgeClass(action) {
+        switch (action.toLowerCase()) {
+            case 'create': return 'success';
+            case 'update': return 'info';
+            case 'delete': return 'danger';
+            default: return 'secondary';
+        }
+    }
+    
+    // Initialize dashboard
+    $(document).ready(function() {
+        loadDashboard();
+        // Refresh dashboard every 5 minutes
+        setInterval(loadDashboard, 300000);
+    });
+</script>
+{% endblock %}
