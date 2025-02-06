@@ -11,19 +11,15 @@ def app():
     # Set up the test database
     db_fd, db_path = tempfile.mkstemp()
     
-    app = create_app('testing')
-    app.config.update({
-        'TESTING': True,
-        'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
-        'WTF_CSRF_ENABLED': False,
-        'SERVER_NAME': 'localhost.localdomain'
-    })
+    # Create app with testing config
+    test_app = create_app('testing')
     
-    # Create tables
-    with app.app_context():
+    # Establish application context
+    with test_app.app_context():
         _db.create_all()
-    
-    yield app
+        yield test_app
+        _db.session.remove()
+        _db.drop_all()
     
     # Clean up
     os.close(db_fd)
@@ -32,9 +28,7 @@ def app():
 @pytest.fixture(scope='session')
 def db(app):
     """Create database for the tests."""
-    with app.app_context():
-        yield _db
-        _db.drop_all()
+    return _db
 
 @pytest.fixture(scope='function')
 def session(db):

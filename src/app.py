@@ -15,7 +15,8 @@ def create_app(config_name=None):
     
     # Load configuration
     from src.config import get_config
-    app.config.from_object(get_config(config_name))
+    config_obj = get_config(config_name)
+    app.config.from_object(config_obj)
     
     # Ensure instance folder exists
     try:
@@ -118,8 +119,7 @@ def create_app(config_name=None):
     
     return app
 
-# Create app instance for WSGI servers
-app = create_app()
-
+# Only create app instance if running directly
 if __name__ == '__main__':
+    app = create_app()
     app.run()
