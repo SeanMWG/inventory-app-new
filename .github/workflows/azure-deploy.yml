@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  AZURE_WEBAPP_NAME: inventory-app    # Replace with your app name from inventory-app-tf-local
+  AZURE_WEBAPP_NAME: inventory-app
   PYTHON_VERSION: '3.11'
 
 jobs:
@@ -33,12 +33,10 @@ jobs:
         TESTING: true
         SECRET_KEY: test-secret-key
         SQLALCHEMY_DATABASE_URI: sqlite:///test.db
-        SQLALCHEMY_TRACK_MODIFICATIONS: false
-        WTF_CSRF_ENABLED: false
       run: |
         python -m pytest
 
-  build-and-deploy:
+  deploy:
     needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -46,26 +44,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -e .
-        
-    - name: Create deployment package
-      run: |
-        mkdir deploy
-        cp -r src deploy/
-        cp -r static deploy/
-        cp -r templates deploy/
-        cp requirements.txt deploy/
-        cp setup.py deploy/
-        
     - name: Log in to Azure
       uses: azure/login@v1
       with:
@@ -75,11 +53,5 @@ jobs:
       uses: azure/webapps-deploy@v2
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        package: deploy
-        
-    - name: Run database migrations
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        FLASK_APP: src.app:app
-      run: |
-        flask db upgrade
+        package: .
+
