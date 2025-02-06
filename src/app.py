@@ -6,7 +6,7 @@ from logging.handlers import RotatingFileHandler
 import os
 
 from src.models import db
-from src.utils import db as db_utils, auth as auth_utils
+from src.utils import auth as auth_utils
 from src.routes import auth, inventory, location, stats
 
 def create_app(config_name=None):
@@ -28,8 +28,7 @@ def create_app(config_name=None):
     db.init_app(app)
     Migrate(app, db)
     
-    # Initialize utilities
-    db_utils.init_app(app)
+    # Initialize auth utilities
     auth_utils.init_app(app)
     
     # Register blueprints
@@ -97,7 +96,13 @@ def create_app(config_name=None):
     # Health check endpoint
     @app.route('/health')
     def health():
-        return db_utils.health_check()
+        try:
+            # Test database connection
+            db.session.execute('SELECT 1')
+            return {'status': 'healthy', 'database': 'connected'}
+        except Exception as e:
+            app.logger.error(f'Health check failed: {str(e)}')
+            return {'status': 'unhealthy', 'database': 'disconnected'}, 500
     
     # Index route
     @app.route('/')
