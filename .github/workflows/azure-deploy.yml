@@ -27,20 +27,39 @@ jobs:
         pip install -r requirements.txt
         pip install -e .
         
-    - name: Run tests
+    - name: Setup test environment
+      run: |
+        mkdir -p instance
+        touch instance/test.db
+        python -c "import os; os.makedirs('logs', exist_ok=True)"
+        
+    - name: Run tests with debug output
       env:
         FLASK_ENV: testing
         TESTING: true
         SECRET_KEY: test-secret-key
-        SQLALCHEMY_DATABASE_URI: sqlite:///test.db
+        SQLALCHEMY_DATABASE_URI: sqlite:///instance/test.db
         SQLALCHEMY_TRACK_MODIFICATIONS: false
         WTF_CSRF_ENABLED: false
         CLIENT_ID: test-client-id
         CLIENT_SECRET: test-client-secret
         AUTHORITY: https://login.microsoftonline.com/test-tenant-id
         SCOPE: test-scope
+        PYTHONPATH: .
       run: |
-        python -m pytest
+        echo "Running tests with verbose output..."
+        python -m pytest -v --log-cli-level=DEBUG
+        
+    - name: Upload test logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-logs
+        path: |
+          logs/
+          .pytest_cache/
+          htmlcov/
+        retention-days: 7
 
   deploy:
     needs: test
