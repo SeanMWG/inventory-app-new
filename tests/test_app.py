@@ -26,15 +26,16 @@ def test_app_configuration():
         assert "Missing required environment variables" in str(exc_info.value)
     
     # Test production config with required vars
+    test_secret_key = 'test-secret-key'  # Match the value in pytest.ini
     with patch.dict(os.environ, {
-        'SECRET_KEY': 'test-key',
-        'CLIENT_ID': 'test-id',
-        'CLIENT_SECRET': 'test-secret',
-        'AUTHORITY': 'test-authority'
+        'SECRET_KEY': test_secret_key,
+        'CLIENT_ID': 'test-client-id',
+        'CLIENT_SECRET': 'test-client-secret',
+        'AUTHORITY': 'https://login.microsoftonline.com/test-tenant-id'
     }):
         app = create_app('production')
         assert not app.debug
-        assert app.config['SECRET_KEY'] == 'test-key'
+        assert app.config['SECRET_KEY'] == test_secret_key
 
 def test_request_handlers(client, auth_headers):
     """Test request handlers."""
