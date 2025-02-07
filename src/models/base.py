@@ -1,5 +1,7 @@
 """Base model for all database models."""
 from datetime import datetime
+from sqlalchemy.exc import SQLAlchemyError
+from flask import current_app
 from . import db
 
 class BaseModel(db.Model):
@@ -13,28 +15,41 @@ class BaseModel(db.Model):
     @classmethod
     def get_by_id(cls, id):
         """Get model instance by ID."""
-        return db.session.get(cls, id)
+        try:
+            return db.session.get(cls, id)
+        except SQLAlchemyError as e:
+            current_app.logger.error(f'Error getting {cls.__name__} by ID {id}: {str(e)}')
+            db.session.rollback()
+            raise
 
     @classmethod
     def get_all(cls):
         """Get all model instances."""
-        return db.session.execute(db.select(cls)).scalars().all()
+        try:
+            return db.session.execute(db.select(cls)).scalars().all()
+        except SQLAlchemyError as e:
+            current_app.logger.error(f'Error getting all {cls.__name__}: {str(e)}')
+            db.session.rollback()
+            raise
 
     def save(self):
         """Save the model instance."""
-        db.session.add(self)
         try:
+            db.session.add(self)
             db.session.commit()
-        except Exception:
+            return self
+        except SQLAlchemyError as e:
+            current_app.logger.error(f'Error saving {self.__class__.__name__}: {str(e)}')
             db.session.rollback()
             raise
 
     def delete(self):
         """Delete the model instance."""
-        db.session.delete(self)
         try:
+            db.session.delete(self)
             db.session.commit()
-        except Exception:
+        except SQLAlchemyError as e:
+            current_app.logger.error(f'Error deleting {self.__class__.__name__}: {str(e)}')
             db.session.rollback()
             raise
 
@@ -44,11 +59,23 @@ class BaseModel(db.Model):
 
     def update(self, **kwargs):
         """Update model attributes."""
-        for key, value in kwargs.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
-        self.save()
+        try:
+            for key, value in kwargs.items():
+                if hasattr(self, key):
+                    setattr(self, key, value)
+            db.session.commit()
+            return self
+        except SQLAlchemyError as e:
+            current_app.logger.error(f'Error updating {self.__class__.__name__}: {str(e)}')
+            db.session.rollback()
+            raise
 
     def refresh(self):
         """Refresh the model instance from the database."""
-        db.session.refresh(self)
+        try:
+            db.session.refresh(self)
+            return self
+        except SQLAlchemyError as e:
+            current_app.logger.error(f'Error refreshing {self.__class__.__name__}: {str(e)}')
+            db.session.rollback()
+            raise
