@@ -41,14 +41,26 @@ def db(app):
 def session(app, db):
     """Create a new database session for a test."""
     with app.app_context():
+        # Create a new connection and transaction
         connection = db.engine.connect()
         transaction = connection.begin()
         
-        # Create session factory
+        # Create session factory bound to this connection
         session_factory = sessionmaker(bind=connection)
         session = scoped_session(session_factory)
         
-        # Set session
+        # Begin a nested transaction (using SAVEPOINT)
+        nested = connection.begin_nested()
+        
+        # If the application code calls session.commit, it will end the nested
+        # transaction. Need to start a new one when that happens.
+        @db.event.listens_for(session, 'after_transaction_end')
+        def end_savepoint(session, transaction):
+            nonlocal nested
+            if not nested.is_active:
+                nested = connection.begin_nested()
+        
+        # Set the session for the app
         db.session = session
         
         yield session
@@ -90,7 +102,6 @@ def sample_location(session):
     )
     session.add(location)
     session.commit()
-    session.refresh(location)
     
     return location
 
@@ -109,7 +120,6 @@ def sample_inventory(session, sample_location):
     )
     session.add(item)
     session.commit()
-    session.refresh(item)
     
     return item
 
@@ -126,6 +136,5 @@ def sample_audit_log(session, sample_inventory):
     )
     session.add(log)
     session.commit()
-    session.refresh(log)
     
     return log
