@@ -1,7 +1,8 @@
 """Statistics routes."""
 from flask import Blueprint, jsonify, current_app
-from sqlalchemy import func
+from sqlalchemy import func, text
 from ..models.inventory import Inventory
+from ..models.location import Location
 from ..models.audit import AuditLog
 from ..utils.auth import requires_auth
 
@@ -29,9 +30,9 @@ def get_stats():
         # Get counts by location using SQLAlchemy 2.0 style
         location_counts = (
             Inventory.query
-            .join(Inventory.location)
-            .with_entities('location.site_name', func.count(Inventory.id))
-            .group_by('location.site_name')
+            .join(Location)
+            .with_entities(Location.site_name, func.count(Inventory.id))
+            .group_by(Location.site_name)
             .all()
         )
         

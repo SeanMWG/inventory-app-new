@@ -73,7 +73,7 @@ def test_inventory_creation(session, sample_location):
 
 def test_inventory_unique_constraints(session):
     """Test inventory unique constraints."""
-    # Create a location first
+    # Create a location first and keep it in the session
     location = Location(
         site_name='Test Site',
         room_number='101',
@@ -95,6 +95,7 @@ def test_inventory_unique_constraints(session):
     )
     session.add(item1)
     session.commit()
+    session.refresh(item1)
     
     # Test duplicate asset tag
     item2 = Inventory(
@@ -109,6 +110,9 @@ def test_inventory_unique_constraints(session):
     with pytest.raises(IntegrityError):
         session.commit()
     session.rollback()
+    
+    # Refresh location after rollback
+    session.refresh(location)
     
     # Test duplicate serial number
     item3 = Inventory(
