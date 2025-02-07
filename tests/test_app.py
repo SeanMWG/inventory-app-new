@@ -20,9 +20,21 @@ def test_app_configuration():
     assert 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']
     
     # Test production config
-    with pytest.raises(ValueError):
-        # Should fail without required env vars
-        create_app('production')
+    with patch.dict(os.environ, {}, clear=True):  # Clear all env vars
+        with pytest.raises(ValueError) as exc_info:
+            create_app('production')
+        assert "Missing required environment variables" in str(exc_info.value)
+    
+    # Test production config with required vars
+    with patch.dict(os.environ, {
+        'SECRET_KEY': 'test-key',
+        'CLIENT_ID': 'test-id',
+        'CLIENT_SECRET': 'test-secret',
+        'AUTHORITY': 'test-authority'
+    }):
+        app = create_app('production')
+        assert not app.debug
+        assert app.config['SECRET_KEY'] == 'test-key'
 
 def test_request_handlers(client, auth_headers):
     """Test request handlers."""
@@ -119,7 +131,8 @@ def test_logging_setup(tmp_path):
         with patch('os.makedirs') as mock_mkdir:
             app = create_app('development')
             mock_mkdir.assert_called_once()
-            assert app.logger.handlers
+            assert any(handler.__class__.__name__ == 'RotatingFileHandler' 
+                      for handler in app.logger.handlers)
 
 def test_request_timing(client):
     """Test request timing header in debug mode."""
@@ -134,7 +147,7 @@ def test_error_logging(client, caplog):
     """Test error logging."""
     # Test 404 logging
     client.get('/nonexistent-endpoint')
-    assert 'Page not found' in caplog.text
+    assert any('Page not found' in record.message for record in caplog.records)
     
     # Test 500 logging
     with patch('src.models.db.session.commit') as mock_commit:
@@ -142,4 +155,4 @@ def test_error_logging(client, caplog):
         client.post('/api/locations',
                    headers={'Content-Type': 'application/json'},
                    data=json.dumps({'site_name': 'Test'}))
-        assert 'Server Error' in caplog.text
+        assert any('Server Error' in record.message for record in caplog.records)
