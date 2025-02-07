@@ -26,6 +26,11 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
 
+    @classmethod
+    def init_app(cls, app):
+        """Initialize application."""
+        pass
+
 class DevelopmentConfig(Config):
     """Development configuration."""
     DEBUG = True
@@ -38,32 +43,47 @@ class TestingConfig(Config):
     """Testing configuration."""
     DEBUG = False
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get('SQLALCHEMY_DATABASE_URI') or 'sqlite:///:memory:'
+    # Use in-memory SQLite by default, but allow override from environment
+    SQLALCHEMY_DATABASE_URI = os.environ.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///:memory:')
     WTF_CSRF_ENABLED = False
     SESSION_COOKIE_SECURE = False
+    SERVER_NAME = 'localhost'
     
     # Test Azure AD settings
-    CLIENT_ID = os.environ.get('CLIENT_ID', 'test-client-id')
-    CLIENT_SECRET = os.environ.get('CLIENT_SECRET', 'test-client-secret')
-    AUTHORITY = os.environ.get('AUTHORITY', 'https://login.microsoftonline.com/test-tenant-id')
-    SCOPE = os.environ.get('SCOPE', 'test-scope')
+    CLIENT_ID = 'test-client-id'
+    CLIENT_SECRET = 'test-client-secret'
+    AUTHORITY = 'https://login.microsoftonline.com/test-tenant-id'
+    SCOPE = 'test-scope'
+
+    @classmethod
+    def init_app(cls, app):
+        """Initialize test application."""
+        Config.init_app(app)
+        # Disable MSAL validation in testing
+        app.config['TESTING'] = True
 
 class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
     TESTING = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
     
-    # Ensure these are set
     @classmethod
     def init_app(cls, app):
         """Initialize production application."""
-        if not cls.SECRET_KEY or cls.SECRET_KEY == 'dev-key-please-change':
-            raise ValueError('Production SECRET_KEY must be set')
-        if not cls.SQLALCHEMY_DATABASE_URI:
-            raise ValueError('Production DATABASE_URL must be set')
-        if not all([cls.CLIENT_ID, cls.CLIENT_SECRET, cls.AUTHORITY]):
-            raise ValueError('Azure AD credentials must be set')
+        Config.init_app(app)
+        
+        # Ensure required settings are present
+        required_settings = [
+            ('SECRET_KEY', 'Production SECRET_KEY must be set'),
+            ('SQLALCHEMY_DATABASE_URI', 'Production DATABASE_URL must be set'),
+            ('CLIENT_ID', 'Azure AD CLIENT_ID must be set'),
+            ('CLIENT_SECRET', 'Azure AD CLIENT_SECRET must be set'),
+            ('AUTHORITY', 'Azure AD AUTHORITY must be set')
+        ]
+        
+        for setting, message in required_settings:
+            if not app.config.get(setting):
+                raise ValueError(message)
 
 config = {
     'development': DevelopmentConfig,

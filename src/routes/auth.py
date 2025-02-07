@@ -9,6 +9,11 @@ def login():
     """Handle login."""
     try:
         if current_app.testing:
+            session['user'] = {
+                'id': 'test@example.com',
+                'name': 'Test User',
+                'roles': ['admin']
+            }
             return redirect(url_for('index'))
 
         # Get token from cache
@@ -37,6 +42,11 @@ def authorized():
     """Handle authorization response."""
     try:
         if current_app.testing:
+            session['user'] = {
+                'id': 'test@example.com',
+                'name': 'Test User',
+                'roles': ['admin']
+            }
             return redirect(url_for('index'))
 
         if 'code' not in request.args:
@@ -84,6 +94,7 @@ def logout():
     """Handle logout."""
     try:
         if current_app.testing:
+            session.clear()
             return redirect(url_for('index'))
 
         # Clear session

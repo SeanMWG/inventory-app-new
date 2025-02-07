@@ -4,6 +4,7 @@ import tempfile
 import uuid
 import pytest
 from sqlalchemy.orm import scoped_session, sessionmaker
+from flask import appcontext_pushed, g
 from src.app import create_app
 from src.models import db as _db
 
@@ -15,7 +16,12 @@ def app():
     
     # Create app with testing config
     test_app = create_app('testing')
-    test_app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    test_app.config.update({
+        'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
+        'TESTING': True,
+        'WTF_CSRF_ENABLED': False,
+        'SERVER_NAME': 'localhost'
+    })
     
     # Establish application context
     with test_app.app_context():
@@ -90,6 +96,12 @@ def auth_headers():
     }
 
 @pytest.fixture
+def request_context(app):
+    """Create request context."""
+    with app.test_request_context() as ctx:
+        yield ctx
+
+@pytest.fixture
 def sample_location(session):
     """Create a sample location."""
     from src.models.location import Location
@@ -102,6 +114,7 @@ def sample_location(session):
     )
     session.add(location)
     session.commit()
+    session.refresh(location)
     
     return location
 
@@ -120,6 +133,7 @@ def sample_inventory(session, sample_location):
     )
     session.add(item)
     session.commit()
+    session.refresh(item)
     
     return item
 
@@ -136,5 +150,11 @@ def sample_audit_log(session, sample_inventory):
     )
     session.add(log)
     session.commit()
+    session.refresh(log)
     
     return log
+
+@pytest.fixture(autouse=True)
+def _push_request_context(request_context):
+    """Automatically push request context for all tests."""
+    pass

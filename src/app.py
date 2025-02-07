@@ -20,6 +20,9 @@ def create_app(config_name=None):
     config_obj = get_config(config_name)
     app.config.from_object(config_obj)
     
+    # Initialize configuration
+    config_obj.init_app(app)
+    
     # Ensure instance folder exists
     try:
         os.makedirs(app.instance_path)
@@ -64,7 +67,7 @@ def create_app(config_name=None):
         g.request_start_time = datetime.utcnow()
         
         # Skip token refresh for testing and certain endpoints
-        if not app.testing and request.endpoint not in ['auth.login', 'auth.authorized', 'auth.status']:
+        if not app.testing and request.endpoint not in ['auth.login', 'auth.authorized', 'auth.status', 'static']:
             auth_utils.refresh_token_if_needed()
     
     @app.after_request
@@ -95,6 +98,14 @@ def create_app(config_name=None):
         app.logger.error(f'Server Error: {error}')
         return jsonify({'error': 'Internal Server Error'}), 500
     
+    @app.errorhandler(401)
+    def unauthorized_error(error):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    @app.errorhandler(403)
+    def forbidden_error(error):
+        return jsonify({'error': 'Forbidden'}), 403
+    
     # Health check endpoint
     @app.route('/health')
     def health():
@@ -110,12 +121,18 @@ def create_app(config_name=None):
     # Index route
     @app.route('/')
     def index():
-        return send_from_directory(app.static_folder, 'index.html')
+        try:
+            return send_from_directory(app.static_folder, 'index.html')
+        except Exception:
+            return jsonify({'error': 'Not Found'}), 404
     
     # Static files
     @app.route('/<path:filename>')
     def static_files(filename):
-        return send_from_directory(app.static_folder, filename)
+        try:
+            return send_from_directory(app.static_folder, filename)
+        except Exception:
+            return jsonify({'error': 'Not Found'}), 404
     
     # Shell context
     @app.shell_context_processor
