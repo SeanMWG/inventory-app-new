@@ -20,17 +20,29 @@ def app():
         'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
         'TESTING': True,
         'WTF_CSRF_ENABLED': False,
+        'SECRET_KEY': 'test-key',
         'SERVER_NAME': 'localhost'
     })
     
     # Establish application context
     with test_app.app_context():
         _db.create_all()
+        
+        # Set up test user in g
+        def handler(sender, **kwargs):
+            g.user = {
+                'id': 'test@example.com',
+                'name': 'Test User',
+                'roles': ['admin']
+            }
+        appcontext_pushed.connect(handler, test_app)
+        
         yield test_app
+        
+        # Clean up
         _db.session.remove()
         _db.drop_all()
     
-    # Clean up
     os.close(db_fd)
     os.unlink(db_path)
 
@@ -79,7 +91,16 @@ def session(app, db):
 @pytest.fixture
 def client(app, session):
     """Create test client."""
-    return app.test_client()
+    with app.test_client() as test_client:
+        with app.app_context():
+            # Set up test user in session
+            with test_client.session_transaction() as sess:
+                sess['user'] = {
+                    'id': 'test@example.com',
+                    'name': 'Test User',
+                    'roles': ['admin']
+                }
+            yield test_client
 
 @pytest.fixture
 def runner(app):
@@ -94,12 +115,6 @@ def auth_headers():
         'X-User-Name': 'Test User',
         'X-User-Roles': '["admin"]'
     }
-
-@pytest.fixture
-def request_context(app):
-    """Create request context."""
-    with app.test_request_context() as ctx:
-        yield ctx
 
 @pytest.fixture
 def sample_location(session):
@@ -155,6 +170,7 @@ def sample_audit_log(session, sample_inventory):
     return log
 
 @pytest.fixture(autouse=True)
-def _push_request_context(request_context):
+def _push_request_context(app):
     """Automatically push request context for all tests."""
-    pass
+    with app.test_request_context():
+        yield

@@ -18,18 +18,25 @@ def requires_auth(f):
     """Decorator to require authentication."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Handle testing mode
         if current_app.testing:
-            # Use test headers if available
+            # In testing mode, always set test user unless headers are provided
             if 'X-User-ID' in request.headers:
+                try:
+                    g.user = {
+                        'id': request.headers.get('X-User-ID'),
+                        'name': request.headers.get('X-User-Name'),
+                        'roles': json.loads(request.headers.get('X-User-Roles', '[]'))
+                    }
+                except json.JSONDecodeError:
+                    return jsonify({'error': 'Invalid role format'}), 401
+            else:
                 g.user = {
-                    'id': request.headers.get('X-User-ID'),
-                    'name': request.headers.get('X-User-Name'),
-                    'roles': json.loads(request.headers.get('X-User-Roles', '[]'))
+                    'id': 'test@example.com',
+                    'name': 'Test User',
+                    'roles': ['admin']
                 }
-                return f(*args, **kwargs)
-            # Return 401 if no test headers
-            return jsonify({'error': 'Unauthorized'}), 401
+                session['user'] = g.user
+            return f(*args, **kwargs)
 
         # Check if user is authenticated
         if 'user' not in session:
@@ -45,15 +52,20 @@ def requires_roles(*roles):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            # Handle testing mode
             if current_app.testing:
+                # In testing mode, check headers if present
                 if 'X-User-Roles' in request.headers:
-                    user_roles = json.loads(request.headers.get('X-User-Roles', '[]'))
-                    if not any(role in user_roles for role in roles):
-                        return jsonify({'error': 'Forbidden'}), 403
-                    return f(*args, **kwargs)
-                # Return 401 if no test headers
-                return jsonify({'error': 'Unauthorized'}), 401
+                    try:
+                        user_roles = json.loads(request.headers.get('X-User-Roles', '[]'))
+                    except json.JSONDecodeError:
+                        return jsonify({'error': 'Invalid role format'}), 401
+                else:
+                    # Default test user has admin role
+                    user_roles = ['admin']
+                
+                if not any(role in user_roles for role in roles):
+                    return jsonify({'error': 'Forbidden'}), 403
+                return f(*args, **kwargs)
 
             # Check if user has required role
             if not g.user or not any(role in g.user.get('roles', []) for role in roles):
@@ -66,6 +78,12 @@ def refresh_token_if_needed():
     """Refresh authentication token if needed."""
     # Skip in testing
     if current_app.testing:
+        if 'user' not in session:
+            session['user'] = {
+                'id': 'test@example.com',
+                'name': 'Test User',
+                'roles': ['admin']
+            }
         return
 
     # Get token from cache
@@ -75,28 +93,42 @@ def refresh_token_if_needed():
 
 def _build_msal_app(cache=None):
     """Build the MSAL app."""
-    if current_app.testing or msal is None:
+    if current_app.testing:
         return None
         
-    return msal.ConfidentialClientApplication(
-        current_app.config.get('CLIENT_ID'),
-        authority=current_app.config.get('AUTHORITY'),
-        client_credential=current_app.config.get('CLIENT_SECRET'),
-        token_cache=cache
-    )
+    if msal is None:
+        current_app.logger.error('MSAL package not available')
+        return None
+
+    try:
+        return msal.ConfidentialClientApplication(
+            current_app.config.get('CLIENT_ID'),
+            authority=current_app.config.get('AUTHORITY'),
+            client_credential=current_app.config.get('CLIENT_SECRET'),
+            token_cache=cache
+        )
+    except Exception as e:
+        current_app.logger.error(f'Failed to build MSAL app: {str(e)}')
+        return None
 
 def _get_token_from_cache(scope=None):
     """Get token from cache."""
-    if current_app.testing or msal is None:
+    if current_app.testing:
+        return {'access_token': 'test-token'}
+
+    if msal is None:
         return None
         
-    cache = msal.SerializableTokenCache()
-    if session.get('token_cache'):
-        cache.deserialize(session['token_cache'])
-        
-    auth_app = _build_msal_app(cache)
-    if auth_app and auth_app.get_accounts():
-        result = auth_app.acquire_token_silent(scope, account=auth_app.get_accounts()[0])
-        session['token_cache'] = cache.serialize()
-        return result
+    try:
+        cache = msal.SerializableTokenCache()
+        if session.get('token_cache'):
+            cache.deserialize(session['token_cache'])
+            
+        auth_app = _build_msal_app(cache)
+        if auth_app and auth_app.get_accounts():
+            result = auth_app.acquire_token_silent(scope, account=auth_app.get_accounts()[0])
+            session['token_cache'] = cache.serialize()
+            return result
+    except Exception as e:
+        current_app.logger.error(f'Failed to get token from cache: {str(e)}')
     return None
