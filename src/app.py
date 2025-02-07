@@ -66,8 +66,12 @@ def create_app(config_name=None):
     def before_request():
         g.request_start_time = datetime.utcnow()
         
-        # Skip token refresh for testing and certain endpoints
-        if not app.testing and request.endpoint not in ['auth.login', 'auth.authorized', 'auth.status', 'static']:
+        # Skip auth for static files, health check, and auth endpoints
+        if request.path.startswith('/static/') or request.endpoint in ['static_files', 'health', 'index', 'auth.login', 'auth.authorized', 'auth.status']:
+            return
+            
+        # Skip token refresh for testing
+        if not app.testing:
             auth_utils.refresh_token_if_needed()
     
     @app.after_request

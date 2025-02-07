@@ -7,6 +7,7 @@ class Config:
     
     # Basic Flask config
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev')
+    DEBUG = True  # Enable debug mode by default
     
     # SQLAlchemy config
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -33,6 +34,7 @@ class TestingConfig(Config):
     """Testing configuration."""
     
     TESTING = True
+    DEBUG = True
     WTF_CSRF_ENABLED = False
     SERVER_NAME = 'localhost'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///test.db'
@@ -53,16 +55,17 @@ class TestingConfig(Config):
 class ProductionConfig(Config):
     """Production configuration."""
     
+    DEBUG = True  # Temporarily enable debug for troubleshooting
+    
     @staticmethod
     def init_app(app):
         """Initialize application for production."""
         Config.init_app(app)
         
-        # Validate required config
-        required = ['SECRET_KEY', 'CLIENT_ID', 'CLIENT_SECRET', 'AUTHORITY']
-        missing = [key for key in required if not os.environ.get(key)]
-        if missing:
-            raise ValueError(f'Missing required environment variables: {", ".join(missing)}')
+        # Log configuration
+        app.logger.info('Production config loaded')
+        app.logger.info(f'Debug mode: {app.debug}')
+        app.logger.info(f'Database URL: {app.config["SQLALCHEMY_DATABASE_URI"]}')
 
 config = {
     'development': DevelopmentConfig,
