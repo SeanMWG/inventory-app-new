@@ -1,89 +1,68 @@
 """Application configuration."""
 import os
-from datetime import timedelta
+from pathlib import Path
 
 class Config:
     """Base configuration."""
-    # Flask
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-key-please-change')
     
-    # SQLAlchemy
+    # Basic Flask config
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev')
+    
+    # SQLAlchemy config
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-    }
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///instance/inventory.db')
     
-    # Azure AD
+    # Azure AD config
     CLIENT_ID = os.environ.get('CLIENT_ID')
     CLIENT_SECRET = os.environ.get('CLIENT_SECRET')
     AUTHORITY = os.environ.get('AUTHORITY')
-    SCOPE = os.environ.get('SCOPE', 'User.Read')
+    SCOPE = os.environ.get('SCOPE', []).split(',') if os.environ.get('SCOPE') else []
     
-    # Session
-    PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
-    SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
-
-    @classmethod
-    def init_app(cls, app):
+    @staticmethod
+    def init_app(app):
         """Initialize application."""
-        pass
+        os.makedirs(app.instance_path, exist_ok=True)
 
 class DevelopmentConfig(Config):
     """Development configuration."""
+    
     DEBUG = True
-    TESTING = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'instance', 'dev.db')
-    SESSION_COOKIE_SECURE = False
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///instance/dev.db')
 
 class TestingConfig(Config):
     """Testing configuration."""
-    DEBUG = False
-    TESTING = True
-    # Use in-memory SQLite by default, but allow override from environment
-    SQLALCHEMY_DATABASE_URI = os.environ.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///:memory:')
-    WTF_CSRF_ENABLED = False
-    SESSION_COOKIE_SECURE = False
-    SERVER_NAME = 'localhost'
     
-    # Test Azure AD settings
+    TESTING = True
+    WTF_CSRF_ENABLED = False
+    SERVER_NAME = 'localhost'
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///test.db'
+    
+    # Test Azure AD config
     CLIENT_ID = 'test-client-id'
     CLIENT_SECRET = 'test-client-secret'
     AUTHORITY = 'https://login.microsoftonline.com/test-tenant-id'
-    SCOPE = 'test-scope'
-
-    @classmethod
-    def init_app(cls, app):
-        """Initialize test application."""
+    SCOPE = ['test-scope']
+    
+    @staticmethod
+    def init_app(app):
+        """Initialize application for testing."""
         Config.init_app(app)
-        # Disable MSAL validation in testing
-        app.config['TESTING'] = True
+        # Ensure test database directory exists
+        os.makedirs('instance', exist_ok=True)
 
 class ProductionConfig(Config):
     """Production configuration."""
-    DEBUG = False
-    TESTING = False
     
-    @classmethod
-    def init_app(cls, app):
-        """Initialize production application."""
+    @staticmethod
+    def init_app(app):
+        """Initialize application for production."""
         Config.init_app(app)
         
-        # Ensure required settings are present
-        required_settings = [
-            ('SECRET_KEY', 'Production SECRET_KEY must be set'),
-            ('SQLALCHEMY_DATABASE_URI', 'Production DATABASE_URL must be set'),
-            ('CLIENT_ID', 'Azure AD CLIENT_ID must be set'),
-            ('CLIENT_SECRET', 'Azure AD CLIENT_SECRET must be set'),
-            ('AUTHORITY', 'Azure AD AUTHORITY must be set')
-        ]
-        
-        for setting, message in required_settings:
-            if not app.config.get(setting):
-                raise ValueError(message)
+        # Validate required config
+        required = ['SECRET_KEY', 'CLIENT_ID', 'CLIENT_SECRET', 'AUTHORITY']
+        missing = [key for key in required if not os.environ.get(key)]
+        if missing:
+            raise ValueError(f'Missing required environment variables: {", ".join(missing)}')
 
 config = {
     'development': DevelopmentConfig,
@@ -96,4 +75,4 @@ def get_config(config_name=None):
     """Get configuration class."""
     if not config_name:
         config_name = os.environ.get('FLASK_ENV', 'default')
-    return config[config_name]
+    return config.get(config_name, config['default'])

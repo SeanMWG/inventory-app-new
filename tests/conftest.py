@@ -11,13 +11,12 @@ from src.models import db as _db
 @pytest.fixture(scope='session')
 def app():
     """Create application for the tests."""
-    # Set up the test database
-    db_fd, db_path = tempfile.mkstemp()
-    
     # Create app with testing config
     test_app = create_app('testing')
+    
+    # Update config with test-specific settings
     test_app.config.update({
-        'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
+        'SQLALCHEMY_DATABASE_URI': 'sqlite:///test.db',
         'TESTING': True,
         'WTF_CSRF_ENABLED': False,
         'SECRET_KEY': 'test-key',
@@ -26,8 +25,6 @@ def app():
     
     # Establish application context
     with test_app.app_context():
-        _db.create_all()
-        
         # Set up test user in g
         def handler(sender, **kwargs):
             g.user = {
@@ -37,14 +34,14 @@ def app():
             }
         appcontext_pushed.connect(handler, test_app)
         
+        # Create database tables
+        _db.create_all()
+        
         yield test_app
         
         # Clean up
         _db.session.remove()
         _db.drop_all()
-    
-    os.close(db_fd)
-    os.unlink(db_path)
 
 @pytest.fixture(scope='function')
 def db(app):
