@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
+app.config['DEBUG'] = True
 
 # Load configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev')
@@ -26,7 +27,12 @@ app.register_blueprint(stats.bp)
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    try:
+        app.logger.info('Rendering index page')
+        return render_template('index.html')
+    except Exception as e:
+        app.logger.error(f'Error rendering index: {str(e)}')
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/health')
 def health():
@@ -37,7 +43,7 @@ def health():
         return jsonify({'status': 'healthy', 'database': 'connected'})
     except Exception as e:
         app.logger.error(f'Health check failed: {str(e)}')
-        return jsonify({'status': 'unhealthy', 'database': 'disconnected'}), 500
+        return jsonify({'status': 'unhealthy', 'database': 'disconnected', 'error': str(e)}), 500
 
 # Error handlers
 @app.errorhandler(404)
@@ -49,7 +55,7 @@ def not_found_error(error):
 def internal_error(error):
     db.session.rollback()
     app.logger.error(f'Server Error: {error}')
-    return jsonify({'error': 'Internal Server Error'}), 500
+    return jsonify({'error': 'Internal Server Error', 'details': str(error)}), 500
 
 @app.errorhandler(401)
 def unauthorized_error(error):
@@ -60,4 +66,4 @@ def forbidden_error(error):
     return jsonify({'error': 'Forbidden'}), 403
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
