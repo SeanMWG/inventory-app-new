@@ -1,5 +1,5 @@
 """Flask application factory."""
-from flask import Flask, g, request
+from flask import Flask, g, request, current_app, jsonify, send_from_directory
 from flask_migrate import Migrate
 from datetime import datetime
 import logging
@@ -13,7 +13,7 @@ from src.routes import auth, inventory, location, stats
 
 def create_app(config_name=None):
     """Application factory function."""
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='../static')
     
     # Load configuration
     from src.config import get_config
@@ -42,7 +42,7 @@ def create_app(config_name=None):
     # Setup logging
     if not app.debug and not app.testing:
         if not os.path.exists('logs'):
-            os.mkdir('logs')
+            os.makedirs('logs')
         file_handler = RotatingFileHandler(
             'logs/inventory.log',
             maxBytes=10240,
@@ -63,8 +63,8 @@ def create_app(config_name=None):
     def before_request():
         g.request_start_time = datetime.utcnow()
         
-        # Refresh token if needed
-        if request.endpoint != 'auth.login':
+        # Skip token refresh for testing and certain endpoints
+        if not app.testing and request.endpoint not in ['auth.login', 'auth.authorized', 'auth.status']:
             auth_utils.refresh_token_if_needed()
     
     @app.after_request
@@ -87,31 +87,35 @@ def create_app(config_name=None):
     @app.errorhandler(404)
     def not_found_error(error):
         app.logger.error(f'Page not found: {request.url}')
-        return {'error': 'Not Found'}, 404
+        return jsonify({'error': 'Not Found'}), 404
     
     @app.errorhandler(500)
     def internal_error(error):
         db.session.rollback()
         app.logger.error(f'Server Error: {error}')
-        return {'error': 'Internal Server Error'}, 500
+        return jsonify({'error': 'Internal Server Error'}), 500
     
     # Health check endpoint
     @app.route('/health')
     def health():
         try:
-            with app.app_context():
-                # Test database connection
-                db.session.execute(text('SELECT 1'))
-                db.session.commit()
-                return {'status': 'healthy', 'database': 'connected'}
+            # Test database connection
+            db.session.execute(text('SELECT 1'))
+            db.session.commit()
+            return jsonify({'status': 'healthy', 'database': 'connected'})
         except Exception as e:
             app.logger.error(f'Health check failed: {str(e)}')
-            return {'status': 'unhealthy', 'database': 'disconnected'}, 500
+            return jsonify({'status': 'unhealthy', 'database': 'disconnected'}), 500
     
     # Index route
     @app.route('/')
     def index():
-        return app.send_static_file('index.html')
+        return send_from_directory(app.static_folder, 'index.html')
+    
+    # Static files
+    @app.route('/<path:filename>')
+    def static_files(filename):
+        return send_from_directory(app.static_folder, filename)
     
     # Shell context
     @app.shell_context_processor

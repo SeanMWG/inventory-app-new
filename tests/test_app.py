@@ -1,7 +1,8 @@
 """Test application."""
 import json
 import pytest
-from unittest.mock import patch
+import os
+from unittest.mock import patch, Mock
 from werkzeug.exceptions import NotFound, InternalServerError
 from src.app import create_app
 
@@ -21,6 +22,7 @@ def test_app_configuration():
     # Test production config
     with pytest.raises(ValueError):
         # Should fail without required env vars
+        os.environ['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
         create_app('production')
 
 def test_request_handlers(client, auth_headers):
@@ -68,10 +70,37 @@ def test_health_check(client):
         assert data['status'] == 'unhealthy'
         assert data['database'] == 'disconnected'
 
-def test_index_route(client):
+def test_index_route(client, tmp_path):
     """Test index route."""
-    response = client.get('/')
-    assert response.status_code == 200
+    # Create temporary static folder
+    static_folder = tmp_path / 'static'
+    static_folder.mkdir()
+    index_file = static_folder / 'index.html'
+    index_file.write_text('<html><body>Test</body></html>')
+    
+    app = create_app('testing')
+    app.static_folder = str(static_folder)
+    
+    with app.test_client() as test_client:
+        response = test_client.get('/')
+        assert response.status_code == 200
+        assert b'Test' in response.data
+
+def test_static_files(client, tmp_path):
+    """Test static file serving."""
+    # Create temporary static folder
+    static_folder = tmp_path / 'static'
+    static_folder.mkdir()
+    test_file = static_folder / 'test.txt'
+    test_file.write_text('Test content')
+    
+    app = create_app('testing')
+    app.static_folder = str(static_folder)
+    
+    with app.test_client() as test_client:
+        response = test_client.get('/test.txt')
+        assert response.status_code == 200
+        assert b'Test content' in response.data
 
 def test_shell_context():
     """Test shell context."""
@@ -87,14 +116,15 @@ def test_logging_setup(tmp_path):
     log_dir = tmp_path / 'logs'
     with patch('os.path.exists') as mock_exists:
         mock_exists.return_value = False
-        with patch('os.mkdir') as mock_mkdir:
-            app = create_app('production')
+        with patch('os.makedirs') as mock_mkdir:
+            app = create_app('development')
             mock_mkdir.assert_called_once()
             assert any(handler.level == 20 for handler in app.logger.handlers)  # INFO level
 
 def test_request_timing(client):
     """Test request timing header in debug mode."""
     app = create_app('development')
+    app.debug = True
     with app.test_client() as test_client:
         response = test_client.get('/health')
         assert 'X-Request-Duration' in response.headers
