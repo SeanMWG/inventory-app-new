@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  AZURE_WEBAPP_NAME: inventory-app
+  AZURE_WEBAPP_NAME: inventory-app-nvn0tlyx
   PYTHON_VERSION: '3.11'
 
 jobs:
